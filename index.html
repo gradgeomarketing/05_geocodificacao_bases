@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Geocodificação e Preparação de Bases</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Prof.ª Renata Oliveira" />
+    <script src="libs/header-attrs/header-attrs.js"></script>
+    <link href="libs/remark-css/default.css" rel="stylesheet" />
+    <link href="libs/font-awesome/css/all.min.css" rel="stylesheet" />
+    <link href="libs/font-awesome/css/v4-shims.min.css" rel="stylesheet" />
+    <link href="libs/panelset/panelset.css" rel="stylesheet" />
+    <script src="libs/panelset/panelset.js"></script>
+    <link href="libs/tile-view/tile-view.css" rel="stylesheet" />
+    <script src="libs/tile-view/tile-view.js"></script>
+    <script type="application/json" id="xaringanExtra-editable-docid">{"id":"bc256a5e84504238a5ca50e58e969d2d","expires":1}</script>
+    <script src="libs/himalaya/himalaya.js"></script>
+    <script src="libs/js-cookie/js.cookie.js"></script>
+    <link href="libs/editable/editable.css" rel="stylesheet" />
+    <script src="libs/editable/editable.js"></script>
+    <script src="libs/clipboard/clipboard.min.js"></script>
+    <link href="libs/xaringanExtra-clipboard/xaringanExtra-clipboard.css" rel="stylesheet" />
+    <script src="libs/xaringanExtra-clipboard/xaringanExtra-clipboard.js"></script>
+    <script>window.xaringanExtraClipboard(null, {"button":"<i class=\"fa fa-clipboard\"><\/i>","success":"<i class=\"fa fa-check\" style=\"color: #90BE6D\"><\/i>","error":"<i class=\"fa fa-times-circle\" style=\"color: #F94144\"><\/i>"})</script>
+    <script src="libs/xaringanExtra_fit-screen/fit-screen.js"></script>
+    <link href="libs/xaringanExtra-extra-styles/xaringanExtra-extra-styles.css" rel="stylesheet" />
+    <script src="libs/fabric/fabric.min.js"></script>
+    <link href="libs/xaringanExtra-scribble/scribble.css" rel="stylesheet" />
+    <script src="libs/xaringanExtra-scribble/scribble.js"></script>
+    <script>document.addEventListener('DOMContentLoaded', function() { window.xeScribble = new Scribble({"pen_color":["#FF0000"],"pen_size":3,"eraser_size":30,"palette":[]}) })</script>
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+    <link rel="stylesheet" href="slides.css" type="text/css" />
+    <link rel="stylesheet" href="course-overrides.css" type="text/css" />
+    <link rel="stylesheet" href="zoom.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+.title[
+# Geocodificação e Preparação de Bases
+]
+.subtitle[
+## Unidade 5 | Tópicos Especiais Mercadológicos: Geomarketing
+]
+.author[
+### Prof.ª Renata Oliveira
+]
+.institute[
+### CEFET-MG – Departamento de Ciências Sociais Aplicadas
+]
+.date[
+### Outubro 2026
+]
+
+---
+
+
+
+
+
+layout: true
+
+&lt;div class="my-footer"&gt;
+&lt;span&gt;
+&lt;a href="https://places.education" target="_blank"&gt;https://places.education&lt;/a&gt;
+&lt;/span&gt;
+&lt;/div&gt;
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+class: center, middle
+
+# Geocodificação
+
+.large[
+Geocodificar é converter **endereços textuais** em **coordenadas geográficas**
+(latitude/longitude) — o passo que transforma listas de clientes em mapas.
+]
+
+---
+
+## Agenda — Unidade 5 (6h / 2 encontros)
+
+**Encontro 9 (4h)**
+- Conceito e métodos de geocodificação
+- Padronização de endereços brasileiros
+- APIs gratuitas e pagas: ViaCEP, Nominatim, Google
+- Georreferenciamento vs. geocodificação
+
+**Encontro 10 (2h)**
+- Limpeza e tratamento de inconsistências
+- Integração de tabelas espaciais
+- QGIS: plugin MMQGIS para geocodificação em lote
+- Atividade prática: geocodificar lista de clientes
+
+---
+
+## O que é Geocodificação?
+
+.pull-left[
+**Geocodificação direta:**
+Endereço → Coordenadas
+
+```
+"Av. Afonso Pena, 1000, BH, MG"
+        ↓
+lat: -19.9220, lon: -43.9388
+```
+
+**Geocodificação reversa:**
+Coordenadas → Endereço/Local
+
+```
+lat: -19.9208, lon: -43.9365
+        ↓
+"CEFET-MG Campus II, Contagem"
+```
+]
+
+.pull-right[
+**Por que isso importa?**
+
+- Cadastro de clientes tem **endereço**, não coordenadas
+- Dados de NF-e, CRM e ERP raramente são espacializados
+- A análise de localização requer **lat/lon** para cruzamentos
+
+.tip[
+No Brasil, o **CEP** é a variável mais disponível e padronizada para geocodificação — mas tem limitações de precisão.
+]
+]
+
+---
+
+## Padronização de Endereços Brasileiros
+
+.your-turn[
+**Passo a passo — padronizar endereços na Calculadora de Campos:**
+
+1. Carregar a planilha de clientes: *Camada → Adicionar Camada → Adicionar Camada de Texto Delimitado* (CSV com coluna `endereco`)
+2. Abrir a tabela de atributos e clicar no ícone de **Calculadora de Campos** (ábaco)
+3. Marcar "Criar um novo campo": nome `end_limpo`, tipo **Texto (string)**, comprimento 255
+4. Expressão para maiúsculas, remoção de pontuação e espaços duplicados:
+   ```
+   trim(regexp_replace(upper("endereco"), '[.,/-]', ' '))
+   ```
+5. Criar um segundo campo `end_padrao` para expandir abreviações comuns, encadeando `regexp_replace`:
+   ```
+   regexp_replace(regexp_replace("end_limpo",
+     '^R ', 'RUA '), '^AV ', 'AVENIDA ')
+   ```
+6. Repetir a lógica para outras abreviações do bairro/cidade (ex.: "BH" → "BELO HORIZONTE")
+7. Usar o campo `end_padrao` como coluna de endereço na geocodificação via MMQGIS
+]
+
+---
+
+## Geocodificação via ViaCEP
+
+.your-turn[
+**Passo a passo — usar ViaCEP como complemento manual (não gera coordenadas):**
+
+1. Para cada CEP da lista, acessar no navegador:
+   `https://viacep.com.br/ws/&lt;CEP&gt;/json/` (ex.: `viacep.com.br/ws/30130170/json/`)
+2. Copiar os campos retornados — `logradouro`, `bairro`, `localidade` e `uf` — para as colunas correspondentes da planilha de clientes (CSV), antes de abri-la no QGIS
+3. Carregar a planilha completa: *Camada → Adicionar Camada → Adicionar Camada de Texto Delimitado*
+4. Na Calculadora de Campos, criar o campo `endereco_completo` concatenando as colunas:
+   ```
+   concat("logradouro", ' ', "numero", ' ', "bairro", ' ',
+          "localidade", '/', "uf")
+   ```
+5. Usar `endereco_completo` como coluna de entrada no MMQGIS → Geocode CSV with Web Service
+]
+
+.tip[
+ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemento manual antes da geocodificação via MMQGIS.
+]
+
+---
+
+## Geocodificação via Nominatim (OpenStreetMap)
+
+.your-turn[
+**Passo a passo — geocodificar com Nominatim no MMQGIS:**
+
+1. *MMQGIS → Geocode → Geocode CSV with Web Service*
+2. Em **Input CSV File**, selecionar a planilha com a coluna `endereco_completo`
+3. Em **Web Service**, escolher **Nominatim (OpenStreetMap)** — gratuito, não exige chave de API
+4. Selecionar a coluna de endereço no campo **Address Field**
+5. Em **Output Shapefile**, definir onde salvar a camada de pontos resultante e o SRC de saída (SIRGAS 2000, EPSG:4674)
+6. Clicar **Apply** — o plugin já respeita automaticamente o limite de **1 requisição/segundo** exigido pelo Nominatim
+7. Ao final são geradas duas camadas: uma com os endereços geocodificados com sucesso e outra (`_notfound`) com os que falharam
+8. Abrir a camada `_notfound`, revisar os endereços e corrigir/reenviar manualmente os que precisarem de ajuste
+]
+
+---
+
+## Geocodificação via Google Maps API
+
+.your-turn[
+**Passo a passo — geocodificar com Google no MMQGIS (opção paga):**
+
+1. Obter uma chave de API em `console.cloud.google.com` → *APIs &amp; Services → Library → Geocoding API → Enable* e depois *Credentials → Create API Key*
+2. *MMQGIS → Geocode → Geocode CSV with Web Service*
+3. Em **Web Service**, selecionar **Google Maps**
+4. Colar a chave de API no campo **API Key**
+5. Selecionar a coluna de endereço completo em **Address Field** e definir o arquivo de saída
+6. Clicar **Apply** — o Google cobre até 200 USD/mês gratuitos de uso
+7. Comparar a taxa de sucesso e a precisão dos pontos com o resultado obtido via Nominatim
+]
+
+| API | Custo | Limite gratuito | Precisão |
+|-----|-------|----------------|----------|
+| Nominatim (OSM) | Gratuito | 1 req/s | Boa |
+| ViaCEP | Gratuito | Sem limite | Somente CEP |
+| Google Maps | Pago | 200 USD/mês grátis | Excelente |
+| OpenCage | Pago | 2.500/dia gratuito | Muito boa |
+
+---
+
+## Limpeza e Tratamento de Inconsistências
+
+.your-turn[
+**Passo a passo — validar as coordenadas geocodificadas:**
+
+1. Na camada de pontos geocodificados, abrir a tabela de atributos e usar **Selecionar feições usando uma expressão** com:
+   ```
+   "lat" IS NULL OR "lon" IS NULL
+   ```
+   e excluir os registros selecionados (Alternar Modo de Edição → Excluir Feições Selecionadas)
+2. Baixar o limite do município (Malha Municipal do IBGE, shapefile/GeoPackage) e carregar via *Camada → Adicionar Camada Vetorial*
+3. Caixa de ferramentas Processing → **"Extract by location"**:
+   - Camada de entrada: pontos geocodificados válidos
+   - Camada de comparação: limite do município (BH)
+   - Predicado espacial: **intersecta / dentro (within)**
+4. Executar — o resultado gera a camada de pontos que caem dentro do município
+5. Verificar quantos registros ficaram de fora (Propriedades → Geral → contagem de feições, ou comparar com a camada original) — esses são candidatos a erro de geocodificação
+]
+
+---
+
+## Integração de Tabelas Espaciais
+
+.your-turn[
+**Passo a passo — associar cada cliente ao seu setor censitário:**
+
+1. Baixar a Malha de Setores Censitários 2022 do IBGE (shapefile/GeoPackage) para o município e carregar via *Camada → Adicionar Camada Vetorial*
+2. Caixa de ferramentas Processing → **"Join attributes by location"**
+3. Configurar:
+   - Camada de entrada: clientes geocodificados e validados (dentro do município)
+   - Camada de junção: setores censitários
+   - Predicado geométrico: **está contido (within)**
+   - Campos a copiar da camada de junção: `CD_SETOR`, `NM_BAIRRO` (ou equivalentes)
+   - Tipo de junção: **um a um (um registro por feição de entrada)**
+4. Executar — a camada de saída traz, para cada cliente, o setor censitário e o bairro correspondentes
+5. Abrir a tabela de atributos → **Mostrar Estatísticas Resumidas** no campo `NM_BAIRRO` para contar clientes por bairro (equivalente a um `count()` agrupado)
+]
+
+.tip[
+"Join attributes by location" é o equivalente espacial de um JOIN de SQL — associa cada ponto ao polígono que o contém.
+]
+
+---
+
+## QGIS — Geocodificação com MMQGIS
+
+.your-turn[
+**Passo a passo:**
+
+1. Instalar plugin: *Complementos → Gerenciar → buscar "MMQGIS" → Instalar*
+2. *MMQGIS → Geocode → Geocode CSV with Web Service*
+3. Configurar:
+   - Arquivo CSV com coluna de endereço completo
+   - Serviço: **Nominatim** (gratuito) ou **Google** (necessita API key)
+   - Coluna de endereço: selecionar
+   - SRC saída: SIRGAS 2000 (4674)
+4. Clicar em **Apply** — aguardar processamento
+5. Camada de pontos gerada automaticamente
+6. Inspecionar resultados e identificar falhas
+
+**Dica:** Concatenar logradouro + número + bairro + cidade + estado antes de importar.
+]
+
+---
+
+## Atividade Prática — Encontro 10
+
+.your-turn[
+**"Geocodificando clientes de uma loja"** *(50 min)*
+
+**Cenário:** Uma loja de material de construção em BH quer mapear seus 50 maiores clientes para identificar clusters de demanda.
+
+**Dados fornecidos:** `dados/clientes_loja.csv` — planilha com 50 clientes fictícios (id, nome, CEP, valor_anual) distribuídos em bairros de BH, pronta para importar no QGIS.
+
+**Tarefas:**
+1. Geocodificar via MMQGIS (Nominatim), completando com ViaCEP quando necessário
+2. Mapear no QGIS com simbologia **Graduada** (tamanho do ponto ∝ valor_anual)
+3. Identificar bairros com maior concentração de clientes (Join attributes by location + estatísticas resumidas)
+4. Sugerir onde abrir segundo depósito
+]
+
+---
+
+## Resolução da Atividade
+
+.your-turn[
+**Passo a passo — resolução completa:**
+
+1. Importar `dados/clientes_loja.csv` via *Camada → Adicionar Camada → Adicionar Camada de Texto Delimitado* (ainda sem geometria)
+2. Na Calculadora de Campos, criar `endereco_completo` concatenando `cep` com `'Belo Horizonte, MG, Brasil'`
+3. *MMQGIS → Geocode → Geocode CSV with Web Service*, serviço **Nominatim**, coluna `endereco_completo`
+4. Na camada de pontos gerada, abrir *Propriedades → Simbologia → Graduado*:
+   - Valor: `valor_anual`
+   - Método: **tamanho do símbolo** (não cor)
+   - Classificação: 5 classes por Quebras Naturais (Jenks)
+5. Definir a cor do marcador (ex.: `#E9AFA3`) e ativar rótulos com o nome do cliente em *Propriedades → Rótulos*
+6. Opcional: instalar o plugin **qgis2web** e exportar a camada como mapa Leaflet interativo (HTML) para publicar/compartilhar
+]
+
+---
+
+## Conceitos-chave da Unidade 5
+
+.large[
+✅ **Geocodificação** converte endereços em coordenadas — passo fundamental
+
+✅ **Padronização** do endereço antes da geocodificação reduz erros
+
+✅ Nominatim (gratuito) + Google (pago) cobrem a maioria dos casos
+
+✅ **Validação espacial** ("Extract by location") detecta coordenadas erradas
+
+✅ **MMQGIS** permite geocodificação em lote diretamente no QGIS
+]
+
+---
+
+## Referências
+
+- ViaCEP API: [viacep.com.br](https://viacep.com.br)
+- Nominatim (OSM): [nominatim.org](https://nominatim.org)
+- Google Maps Platform: [developers.google.com/maps/documentation/geocoding](https://developers.google.com/maps/documentation/geocoding)
+- OpenCage Geocoder: [opencagedata.com](https://opencagedata.com)
+- MMQGIS Plugin: [michaelminn.net/linux/mmqgis](http://michaelminn.net/linux/mmqgis)
+- SEBASTIÃO, A. **A crescente importância da privacidade e segurança no geomarketing**. Amazon, 2023.
+
+.footnote[
+[github.com/retaoliveira/geomarketing_05_geocodificacao](https://github.com/retaoliveira/geomarketing_05_geocodificacao)
+]
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+  "ratio": "16:9",
+  "highlightLines": true,
+  "highlightStyle": "solarized-light",
+  "countIncrementalSlides": false,
+  "slideNumberFormat": "<div class=\"progress-bar-container\">\n  <div class=\"progress-bar\" style=\"width: calc(%current% / %total% * 100%);\">\n  </div>\n</div>"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+<div class="image-zoom-overlay" id="image-zoom-overlay" aria-hidden="true">
+  <button class="image-zoom-close" type="button" aria-label="Fechar imagem ampliada">×</button>
+  <img class="image-zoom-preview" alt="">
+</div>
+
+<script>
+(function () {
+  var overlay = document.getElementById("image-zoom-overlay");
+  var preview = overlay.querySelector(".image-zoom-preview");
+  var closeButton = overlay.querySelector(".image-zoom-close");
+
+  function enhanceImages() {
+    document.querySelectorAll(".remark-slide-content img").forEach(function (image) {
+      image.classList.add("zoomable-figure");
+      image.setAttribute("tabindex", "0");
+      image.setAttribute("role", "button");
+      image.setAttribute("aria-label", image.alt ? "Ampliar figura: " + image.alt : "Ampliar figura");
+      image.setAttribute("title", "Clique para ampliar");
+    });
+  }
+
+  function openZoom(image) {
+    preview.src = image.currentSrc || image.src;
+    preview.alt = image.alt || "Figura ampliada";
+    overlay.classList.add("is-open");
+    overlay.setAttribute("aria-hidden", "false");
+    closeButton.focus();
+  }
+
+  function closeZoom() {
+    overlay.classList.remove("is-open");
+    overlay.setAttribute("aria-hidden", "true");
+    preview.removeAttribute("src");
+  }
+
+  document.addEventListener("click", function (event) {
+    var image = event.target.closest(".remark-slide-content img");
+    if (image) {
+      event.preventDefault();
+      event.stopPropagation();
+      openZoom(image);
+      return;
+    }
+    if (event.target === overlay || event.target === closeButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeZoom();
+    }
+  }, true);
+
+  document.addEventListener("keydown", function (event) {
+    if ((event.key === "Enter" || event.key === " ") &&
+        event.target.matches(".remark-slide-content img")) {
+      event.preventDefault();
+      event.stopPropagation();
+      openZoom(event.target);
+    } else if (event.key === "Escape" && overlay.classList.contains("is-open")) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeZoom();
+    }
+  }, true);
+
+  window.addEventListener("load", function () {
+    window.setTimeout(enhanceImages, 0);
+  });
+})();
+</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
