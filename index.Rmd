@@ -90,7 +90,7 @@ Geocodificar é converter **endereços textuais** em **coordenadas geográficas*
 
 ---
 
-## O que é Geocodificação?
+## Geocodificação direta e reversa
 
 .pull-left[
 **Geocodificação direta:**
@@ -113,23 +113,31 @@ lat: -19.9208, lon: -43.9365
 ]
 
 .pull-right[
-**Por que isso importa?**
+**Diferença principal:**
 
-- Cadastro de clientes tem **endereço**, não coordenadas
-- Dados de NF-e, CRM e ERP raramente são espacializados
-- A análise de localização requer **lat/lon** para cruzamentos
-
-.tip[
-No Brasil, o **CEP** é a variável mais disponível e padronizada para geocodificação — mas tem limitações de precisão.
-]
+- A geocodificação direta localiza um endereço no mapa
+- A geocodificação reversa identifica o endereço associado a um ponto
+- As duas operações dependem da qualidade da base de referência
 ]
 
 ---
 
-## Padronização de Endereços Brasileiros
+## Por que geocodificar?
+
+- Cadastros de clientes registram **endereços**, não coordenadas
+- Dados de NF-e, CRM e ERP raramente chegam espacializados
+- Cruzamentos espaciais exigem **latitude e longitude**
+
+.tip[
+No Brasil, o **CEP** é uma variável amplamente disponível, mas não garante precisão no número do imóvel.
+]
+
+---
+
+## Padronização de endereços — limpeza inicial
 
 .your-turn[
-**Passo a passo — padronizar endereços na Calculadora de Campos:**
+**Na Calculadora de Campos do QGIS:**
 
 1. Carregar a planilha de clientes: *Camada → Adicionar Camada → Adicionar Camada de Texto Delimitado* (CSV com coluna `endereco`)
 2. Abrir a tabela de atributos e clicar no ícone de **Calculadora de Campos** (ábaco)
@@ -138,70 +146,103 @@ No Brasil, o **CEP** é a variável mais disponível e padronizada para geocodif
    ```
    trim(regexp_replace(upper("endereco"), '[.,/-]', ' '))
    ```
-5. Criar um segundo campo `end_padrao` para expandir abreviações comuns, encadeando `regexp_replace`:
-   ```
-   regexp_replace(regexp_replace("end_limpo",
-     '^R ', 'RUA '), '^AV ', 'AVENIDA ')
-   ```
-6. Repetir a lógica para outras abreviações do bairro/cidade (ex.: "BH" → "BELO HORIZONTE")
-7. Usar o campo `end_padrao` como coluna de endereço na geocodificação via MMQGIS
 ]
 
 ---
 
-## Geocodificação via ViaCEP
+## Padronização de endereços — abreviações
 
 .your-turn[
-**Passo a passo — usar ViaCEP como complemento manual (não gera coordenadas):**
+**Na Calculadora de Campos do QGIS:**
+
+1. Criar o campo `end_padrao` para expandir abreviações comuns, encadeando `regexp_replace`:
+   ```
+   regexp_replace(regexp_replace("end_limpo",
+     '^R ', 'RUA '), '^AV ', 'AVENIDA ')
+   ```
+2. Repetir a lógica para outras abreviações de bairro e cidade, como "BH" → "BELO HORIZONTE"
+3. Conferir uma amostra na tabela de atributos
+4. Usar `end_padrao` como coluna de endereço no MMQGIS
+]
+
+---
+
+## ViaCEP — consulta e preenchimento
+
+.your-turn[
+**O ViaCEP complementa o endereço, mas não gera coordenadas:**
 
 1. Para cada CEP da lista, acessar no navegador:
    `https://viacep.com.br/ws/<CEP>/json/` (ex.: `viacep.com.br/ws/30130170/json/`)
 2. Copiar os campos retornados — `logradouro`, `bairro`, `localidade` e `uf` — para as colunas correspondentes da planilha de clientes (CSV), antes de abri-la no QGIS
 3. Carregar a planilha completa: *Camada → Adicionar Camada → Adicionar Camada de Texto Delimitado*
-4. Na Calculadora de Campos, criar o campo `endereco_completo` concatenando as colunas:
-   ```
-   concat("logradouro", ' ', "numero", ' ', "bairro", ' ',
-          "localidade", '/', "uf")
-   ```
-5. Usar `endereco_completo` como coluna de entrada no MMQGIS → Geocode CSV with Web Service
-]
-
-.tip[
-ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemento manual antes da geocodificação via MMQGIS.
 ]
 
 ---
 
-## Geocodificação via Nominatim (OpenStreetMap)
+## ViaCEP — endereço completo
 
 .your-turn[
-**Passo a passo — geocodificar com Nominatim no MMQGIS:**
+**Na Calculadora de Campos:**
+
+1. Criar o campo `endereco_completo` concatenando as colunas:
+   ```
+   concat("logradouro", ' ', "numero", ' ', "bairro", ' ',
+          "localidade", '/', "uf")
+   ```
+2. Conferir se número, município e UF aparecem em todos os registros
+3. Usar `endereco_completo` como coluna de entrada no MMQGIS → *Geocode CSV with Web Service*
+]
+
+---
+
+## Nominatim — configuração no MMQGIS
+
+.your-turn[
+**Configuração inicial:**
 
 1. *MMQGIS → Geocode → Geocode CSV with Web Service*
 2. Em **Input CSV File**, selecionar a planilha com a coluna `endereco_completo`
 3. Em **Web Service**, escolher **Nominatim (OpenStreetMap)** — gratuito, não exige chave de API
 4. Selecionar a coluna de endereço no campo **Address Field**
 5. Em **Output Shapefile**, definir onde salvar a camada de pontos resultante e o SRC de saída (SIRGAS 2000, EPSG:4674)
-6. Clicar **Apply** — o plugin já respeita automaticamente o limite de **1 requisição/segundo** exigido pelo Nominatim
-7. Ao final são geradas duas camadas: uma com os endereços geocodificados com sucesso e outra (`_notfound`) com os que falharam
-8. Abrir a camada `_notfound`, revisar os endereços e corrigir/reenviar manualmente os que precisarem de ajuste
 ]
 
 ---
 
-## Geocodificação via Google Maps API
+## Nominatim — execução e revisão
 
 .your-turn[
-**Passo a passo — geocodificar com Google no MMQGIS (opção paga):**
+**Processamento:**
+
+1. Clicar em **Apply** e aguardar o processamento
+2. Respeitar o limite de **1 requisição por segundo** exigido pelo Nominatim
+3. Conferir a camada de endereços geocodificados
+4. Abrir a camada `_notfound`, com os registros que falharam
+5. Corrigir os endereços e reenviar apenas os casos necessários
+]
+
+---
+
+## Google Maps API — configuração
+
+.your-turn[
+**Opção paga no MMQGIS:**
 
 1. Obter uma chave de API em `console.cloud.google.com` → *APIs & Services → Library → Geocoding API → Enable* e depois *Credentials → Create API Key*
 2. *MMQGIS → Geocode → Geocode CSV with Web Service*
 3. Em **Web Service**, selecionar **Google Maps**
 4. Colar a chave de API no campo **API Key**
 5. Selecionar a coluna de endereço completo em **Address Field** e definir o arquivo de saída
-6. Clicar **Apply** — o Google cobre até 200 USD/mês gratuitos de uso
-7. Comparar a taxa de sucesso e a precisão dos pontos com o resultado obtido via Nominatim
 ]
+
+---
+
+## Comparação entre serviços
+
+1. Executar a geocodificação no Google Maps API
+2. Comparar a taxa de sucesso e a precisão com o Nominatim
+3. Consultar a política de preços vigente antes de processar a base
 
 | API | Custo | Limite gratuito | Precisão |
 |-----|-------|----------------|----------|
@@ -212,31 +253,40 @@ ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemen
 
 ---
 
-## Limpeza e Tratamento de Inconsistências
+## Validação — coordenadas ausentes
 
 .your-turn[
-**Passo a passo — validar as coordenadas geocodificadas:**
+**Na camada geocodificada:**
 
 1. Na camada de pontos geocodificados, abrir a tabela de atributos e usar **Selecionar feições usando uma expressão** com:
    ```
    "lat" IS NULL OR "lon" IS NULL
    ```
-   e excluir os registros selecionados (Alternar Modo de Edição → Excluir Feições Selecionadas)
-2. Baixar o limite do município (Malha Municipal do IBGE, shapefile/GeoPackage) e carregar via *Camada → Adicionar Camada Vetorial*
-3. Caixa de ferramentas Processing → **"Extract by location"**:
-   - Camada de entrada: pontos geocodificados válidos
-   - Camada de comparação: limite do município (BH)
-   - Predicado espacial: **intersecta / dentro (within)**
-4. Executar — o resultado gera a camada de pontos que caem dentro do município
-5. Verificar quantos registros ficaram de fora (Propriedades → Geral → contagem de feições, ou comparar com a camada original) — esses são candidatos a erro de geocodificação
+2. Separar os registros selecionados para revisão, preservando a base original
+3. Corrigir o endereço ou marcar a justificativa da falha
 ]
 
 ---
 
-## Integração de Tabelas Espaciais
+## Validação — localização no município
 
 .your-turn[
-**Passo a passo — associar cada cliente ao seu setor censitário:**
+1. Baixar o limite municipal do IBGE e carregar via *Camada → Adicionar Camada Vetorial*
+2. Caixa de ferramentas Processing → **Extract by location**:
+   - Camada de entrada: pontos geocodificados válidos
+   - Camada de comparação: limite do município (BH)
+   - Predicado espacial: **intersecta / dentro (within)**
+3. Executar para obter os pontos dentro do município
+4. Comparar a contagem com a camada original
+5. Revisar os pontos externos como candidatos a erro
+]
+
+---
+
+## Integração espacial — configuração
+
+.your-turn[
+**Associação de cada cliente ao setor censitário:**
 
 1. Baixar a Malha de Setores Censitários 2022 do IBGE (shapefile/GeoPackage) para o município e carregar via *Camada → Adicionar Camada Vetorial*
 2. Caixa de ferramentas Processing → **"Join attributes by location"**
@@ -246,8 +296,18 @@ ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemen
    - Predicado geométrico: **está contido (within)**
    - Campos a copiar da camada de junção: `CD_SETOR`, `NM_BAIRRO` (ou equivalentes)
    - Tipo de junção: **um a um (um registro por feição de entrada)**
-4. Executar — a camada de saída traz, para cada cliente, o setor censitário e o bairro correspondentes
-5. Abrir a tabela de atributos → **Mostrar Estatísticas Resumidas** no campo `NM_BAIRRO` para contar clientes por bairro (equivalente a um `count()` agrupado)
+]
+
+---
+
+## Integração espacial — resultado
+
+.your-turn[
+1. Executar **Join attributes by location**
+2. Conferir se cada cliente recebeu `CD_SETOR` e `NM_BAIRRO`
+3. Abrir a tabela de atributos
+4. Usar **Mostrar Estatísticas Resumidas** em `NM_BAIRRO`
+5. Comparar a contagem de clientes por bairro
 ]
 
 .tip[
@@ -256,10 +316,10 @@ ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemen
 
 ---
 
-## QGIS — Geocodificação com MMQGIS
+## MMQGIS — preparação
 
 .your-turn[
-**Passo a passo:**
+**Instalação e entrada:**
 
 1. Instalar plugin: *Complementos → Gerenciar → buscar "MMQGIS" → Instalar*
 2. *MMQGIS → Geocode → Geocode CSV with Web Service*
@@ -268,16 +328,24 @@ ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemen
    - Serviço: **Nominatim** (gratuito) ou **Google** (necessita API key)
    - Coluna de endereço: selecionar
    - SRC saída: SIRGAS 2000 (4674)
-4. Clicar em **Apply** — aguardar processamento
-5. Camada de pontos gerada automaticamente
-6. Inspecionar resultados e identificar falhas
+]
+
+---
+
+## MMQGIS — processamento
+
+.your-turn[
+1. Clicar em **Apply** e aguardar o processamento
+2. Conferir a camada de pontos gerada
+3. Identificar os registros sem correspondência
+4. Revisar o endereço completo e repetir somente os casos corrigidos
 
 **Dica:** Concatenar logradouro + número + bairro + cidade + estado antes de importar.
 ]
 
 ---
 
-## Atividade Prática — Encontro 10
+## Atividade prática — cenário e dados
 
 .your-turn[
 **"Geocodificando clientes de uma loja"** *(50 min)*
@@ -286,7 +354,15 @@ ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemen
 
 **Dados fornecidos:** `dados/clientes_loja.csv` — planilha com 50 clientes fictícios (id, nome, CEP, valor_anual) distribuídos em bairros de BH, pronta para importar no QGIS.
 
-**Tarefas:**
+]
+
+---
+
+## Atividade prática — tarefas
+
+.your-turn[
+**"Geocodificando clientes de uma loja"** *(50 min)*
+
 1. Geocodificar via MMQGIS (Nominatim), completando com ViaCEP quando necessário
 2. Mapear no QGIS com simbologia **Graduada** (tamanho do ponto ∝ valor_anual)
 3. Identificar bairros com maior concentração de clientes (Join attributes by location + estatísticas resumidas)
@@ -295,37 +371,50 @@ ViaCEP retorna **logradouro e bairro**, mas não coordenadas. Use como complemen
 
 ---
 
-## Resolução da Atividade
+## Resolução — geocodificação
 
 .your-turn[
-**Passo a passo — resolução completa:**
+**Etapa 1:**
 
 1. Importar `dados/clientes_loja.csv` via *Camada → Adicionar Camada → Adicionar Camada de Texto Delimitado* (ainda sem geometria)
 2. Na Calculadora de Campos, criar `endereco_completo` concatenando `cep` com `'Belo Horizonte, MG, Brasil'`
 3. *MMQGIS → Geocode → Geocode CSV with Web Service*, serviço **Nominatim**, coluna `endereco_completo`
-4. Na camada de pontos gerada, abrir *Propriedades → Simbologia → Graduado*:
-   - Valor: `valor_anual`
-   - Método: **tamanho do símbolo** (não cor)
-   - Classificação: 5 classes por Quebras Naturais (Jenks)
-5. Definir a cor do marcador (ex.: `#E9AFA3`) e ativar rótulos com o nome do cliente em *Propriedades → Rótulos*
-6. Opcional: instalar o plugin **qgis2web** e exportar a camada como mapa Leaflet interativo (HTML) para publicar/compartilhar
+4. Conferir os registros geocodificados e revisar a camada `_notfound`
 ]
 
 ---
 
-## Conceitos-chave da Unidade 5
+## Resolução — simbologia e exportação
 
-.large[
+.your-turn[
+**Etapa 2:**
+
+1. Na camada de pontos, abrir *Propriedades → Simbologia → Graduado*:
+   - Valor: `valor_anual`
+   - Método: **tamanho do símbolo** (não cor)
+   - Classificação: 5 classes por Quebras Naturais (Jenks)
+2. Definir a cor do marcador, por exemplo `#E9AFA3`
+3. Ativar rótulos com o nome do cliente em *Propriedades → Rótulos*
+4. Opcional: usar **qgis2web** para exportar um mapa Leaflet interativo
+]
+
+---
+
+## Conceitos-chave — preparação e serviços
+
 ✅ **Geocodificação** converte endereços em coordenadas — passo fundamental
 
 ✅ **Padronização** do endereço antes da geocodificação reduz erros
 
 ✅ Nominatim (gratuito) + Google (pago) cobrem a maioria dos casos
+ 
+---
+
+## Conceitos-chave — validação e QGIS
 
 ✅ **Validação espacial** ("Extract by location") detecta coordenadas erradas
 
 ✅ **MMQGIS** permite geocodificação em lote diretamente no QGIS
-]
 
 ---
 

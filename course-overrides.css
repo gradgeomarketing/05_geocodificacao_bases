@@ -50,6 +50,27 @@
   margin-top: 5px;
 }
 
+.remark-slide-content ul,
+.remark-slide-content ol {
+  padding-left: 1.35em;
+}
+
+.remark-slide-content li {
+  clear: both;
+  display: list-item;
+  margin-bottom: 0.1em;
+  overflow-wrap: break-word;
+  width: 100%;
+}
+
+.remark-slide-content code,
+.remark-slide-content a,
+.remark-slide-content td,
+.remark-slide-content th {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
 .remark-slide table,
 .remark-slide table thead,
 .remark-slide table tbody,
